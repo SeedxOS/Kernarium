@@ -5,14 +5,18 @@ set(UML_APPLE_PLATFORM "macos" CACHE STRING "Apple target platform")
 list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES UML_APPLE_PLATFORM)
 set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "Apple architectures" FORCE)
 
-# Each platform's SDK and CMake system name. Every Apple product builds at one
-# deployment target, which its dependency prefixes record as well.
-set(_uml_apple_deployment_target 27.0)
+# Each platform's SDK and CMake system name. Every product of one platform
+# builds at that platform's deployment target, which its dependency prefixes
+# record as well. Andwise: iOS stays at 26.0 (Metal 4's floor); macOS keeps
+# upstream's 27.0.
 if(UML_APPLE_PLATFORM STREQUAL "macos")
+    set(_uml_apple_deployment_target 27.0)
     set(_uml_apple_platform macosx Darwin)
 elseif(UML_APPLE_PLATFORM STREQUAL "ios")
+    set(_uml_apple_deployment_target 26.0)
     set(_uml_apple_platform iphoneos iOS)
 elseif(UML_APPLE_PLATFORM STREQUAL "ios-simulator")
+    set(_uml_apple_deployment_target 26.0)
     set(_uml_apple_platform iphonesimulator iOS)
 else()
     message(FATAL_ERROR "Unknown UML_APPLE_PLATFORM=${UML_APPLE_PLATFORM}")

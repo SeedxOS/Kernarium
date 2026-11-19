@@ -101,8 +101,12 @@ arm64|aarch64) ;;
 *) fail "the Apple GPU build requires an arm64 host" ;;
 esac
 
-# Every Apple product, and the build machine's own pass, builds at this floor.
-DEPLOYMENT_TARGET=27.0
+# Every product of a platform, and the build machine's own pass, builds at
+# that platform's floor. Andwise: iOS 26.0, macOS 27.0.
+case "$PLATFORM" in
+macos) DEPLOYMENT_TARGET=27.0 ;;
+*) DEPLOYMENT_TARGET=26.0 ;;
+esac
 
 # The software variant has no Vulkan driver, no Venus protocol and no render
 # server; the other platforms render on KosmicKrisp.

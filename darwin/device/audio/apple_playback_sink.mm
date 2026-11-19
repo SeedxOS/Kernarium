@@ -31,6 +31,47 @@
 #include <string>
 #include <utility>
 
+/* Andwise: iOS 26 has only the player node's play that raises an
+ * Objective-C exception on failure; the NSError form is iOS 27. */
+static BOOL andwisePlay(AVAudioPlayerNode* player, NSError** error)
+{
+    if (@available(iOS 27.0, macOS 27.0, *))
+        return [player playAndReturnError:error];
+    @try {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        [player play];
+#pragma clang diagnostic pop
+        return YES;
+    } @catch (NSException* exception) {
+        if (error != nullptr)
+            *error = [NSError errorWithDomain:@"AVAudioPlayerNode" code:-1
+                userInfo:@{NSLocalizedDescriptionKey: exception.reason ?: exception.name}];
+        return NO;
+    }
+}
+
+/* Andwise: iOS 26 has only the AVAudioEngine connect that raises an
+ * Objective-C exception on failure; the NSError form is iOS 27. */
+static BOOL andwiseConnect(AVAudioEngine* engine, AVAudioNode* from,
+    AVAudioNode* to, AVAudioFormat* format, NSError** error)
+{
+    if (@available(iOS 27.0, macOS 27.0, *))
+        return [engine connect:from to:to format:format error:error];
+    @try {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        [engine connect:from to:to format:format];
+#pragma clang diagnostic pop
+        return YES;
+    } @catch (NSException* exception) {
+        if (error != nullptr)
+            *error = [NSError errorWithDomain:@"AVAudioEngine" code:-1
+                userInfo:@{NSLocalizedDescriptionKey: exception.reason ?: exception.name}];
+        return NO;
+    }
+}
+
 namespace uml::audio {
 namespace {
 
@@ -248,10 +289,8 @@ struct Output final {
     [output.engine attachNode:output.player];
     if (format != nil && outputRouteUp(output.engine)) {
         NSError* error = nil;
-        if ([output.engine connect:output.player
-                                to:output.engine.mainMixerNode
-                            format:format
-                             error:&error]) {
+        if (andwiseConnect(output.engine, output.player,
+                output.engine.mainMixerNode, format, &error)) {
             [output.engine prepare];
             output.connected = true;
         }
@@ -342,44 +381,74 @@ public:
                       if (const auto flags = weakNotifications.lock())
                           flags->signal(flags->configurationChanged);
                     }];
-        /* iOS 27 replaces the interruption notification with two: the session
-         * becoming inactive, which also reports the app's own deactivations,
-         * and the system's resumption recommendation. An interruption is a
-         * deactivation that carries an interruption context. Every
-         * recommendation ends the interruption; whether the sink takes the
-         * session back at once depends on its advice (see endInterruption). */
-        deactivationObserver_ = [[NSNotificationCenter defaultCenter]
-            addObserverForName:AVAudioSessionDidBecomeInactiveNotification
-                        object:[AVAudioSession sharedInstance]
-                         queue:nil
-                    usingBlock:^(NSNotification* notification) {
-                      const auto flags = weakNotifications.lock();
-                      if (!flags)
-                          return;
-                      const AVAudioSessionDeactivationContext* context =
-                          notification.userInfo[
-                              AVAudioSessionDeactivationContextKey];
-                      if (context.interruptionContext != nil)
-                          flags->signal(flags->interruptionBegan);
-                    }];
-        resumptionObserver_ = [[NSNotificationCenter defaultCenter]
-            addObserverForName:AVAudioSessionResumptionRecommendationNotification
-                        object:[AVAudioSession sharedInstance]
-                         queue:nil
-                    usingBlock:^(NSNotification* notification) {
-                      const auto flags = weakNotifications.lock();
-                      if (!flags)
-                          return;
-                      const AVAudioSessionResumptionContext* context =
-                          notification.userInfo[
-                              AVAudioSessionResumptionContextKey];
-                      if (context.recommendation ==
-                          AVAudioSessionResumptionRecommendationShouldResume) {
-                          flags->resumeRecommended.store(
-                              true, std::memory_order_release);
-                      }
-                      flags->signal(flags->interruptionEnded);
-                    }];
+        /* Andwise: iOS 26 has only the interruption notification; iOS 27
+         * deprecates it for the two below. Each branch signals the same
+         * flags, so the sink behaves alike on both. */
+        if (@available(iOS 27.0, *)) {
+            /* iOS 27 replaces the interruption notification with two: the session
+             * becoming inactive, which also reports the app's own deactivations,
+             * and the system's resumption recommendation. An interruption is a
+             * deactivation that carries an interruption context. Every
+             * recommendation ends the interruption; whether the sink takes the
+             * session back at once depends on its advice (see endInterruption). */
+            deactivationObserver_ = [[NSNotificationCenter defaultCenter]
+                addObserverForName:AVAudioSessionDidBecomeInactiveNotification
+                            object:[AVAudioSession sharedInstance]
+                             queue:nil
+                        usingBlock:^(NSNotification* notification) {
+                          const auto flags = weakNotifications.lock();
+                          if (!flags)
+                              return;
+                          const AVAudioSessionDeactivationContext* context =
+                              notification.userInfo[
+                                  AVAudioSessionDeactivationContextKey];
+                          if (context.interruptionContext != nil)
+                              flags->signal(flags->interruptionBegan);
+                        }];
+            resumptionObserver_ = [[NSNotificationCenter defaultCenter]
+                addObserverForName:AVAudioSessionResumptionRecommendationNotification
+                            object:[AVAudioSession sharedInstance]
+                             queue:nil
+                        usingBlock:^(NSNotification* notification) {
+                          const auto flags = weakNotifications.lock();
+                          if (!flags)
+                              return;
+                          const AVAudioSessionResumptionContext* context =
+                              notification.userInfo[
+                                  AVAudioSessionResumptionContextKey];
+                          if (context.recommendation ==
+                              AVAudioSessionResumptionRecommendationShouldResume) {
+                              flags->resumeRecommended.store(
+                                  true, std::memory_order_release);
+                          }
+                          flags->signal(flags->interruptionEnded);
+                        }];
+        } else {
+            interruptionObserver_ = [[NSNotificationCenter defaultCenter]
+                addObserverForName:AVAudioSessionInterruptionNotification
+                            object:[AVAudioSession sharedInstance]
+                             queue:nil
+                        usingBlock:^(NSNotification* notification) {
+                          const auto flags = weakNotifications.lock();
+                          if (!flags)
+                              return;
+                          const NSNumber* type = notification.userInfo[
+                              AVAudioSessionInterruptionTypeKey];
+                          if (type.unsignedIntegerValue ==
+                              AVAudioSessionInterruptionTypeBegan) {
+                              flags->signal(flags->interruptionBegan);
+                              return;
+                          }
+                          const NSNumber* options = notification.userInfo[
+                              AVAudioSessionInterruptionOptionKey];
+                          if (options.unsignedIntegerValue &
+                              AVAudioSessionInterruptionOptionShouldResume) {
+                              flags->resumeRecommended.store(
+                                  true, std::memory_order_release);
+                          }
+                          flags->signal(flags->interruptionEnded);
+                        }];
+        }
 #endif
     }
 
@@ -393,10 +462,15 @@ public:
                 removeObserver:configurationObserver_];
 #if TARGET_OS_IPHONE
             [[NSNotificationCenter defaultCenter] removeObserver:routeObserver_];
-            [[NSNotificationCenter defaultCenter]
-                removeObserver:deactivationObserver_];
-            [[NSNotificationCenter defaultCenter]
-                removeObserver:resumptionObserver_];
+            if (deactivationObserver_ != nil)
+                [[NSNotificationCenter defaultCenter]
+                    removeObserver:deactivationObserver_];
+            if (resumptionObserver_ != nil)
+                [[NSNotificationCenter defaultCenter]
+                    removeObserver:resumptionObserver_];
+            if (interruptionObserver_ != nil)
+                [[NSNotificationCenter defaultCenter]
+                    removeObserver:interruptionObserver_];
 #endif
         } @catch (NSException*) {
         }
@@ -464,10 +538,8 @@ public:
             if (!health_.mustReplace(outputRouteUp(engine_))) {
                 [engine_ disconnectNodeOutput:player_];
                 NSError* connectError = nil;
-                if (![engine_ connect:player_
-                                   to:engine_.mainMixerNode
-                               format:format_
-                                error:&connectError]) {
+                if (!andwiseConnect(engine_, player_,
+                        engine_.mainMixerNode, format_, &connectError)) {
                     configured_ = false;
                     prepared_ = false;
                     running_ = false;
@@ -1037,7 +1109,7 @@ private:
                       // of after the player's own start-up.
                       if (running) {
                           AVAudioPlayerNode* const player = output.player;
-                          (void)[player playAndReturnError:&error];
+                          (void)andwisePlay(player, &error);
                           // The engine reports that it runs well before the
                           // audio hardware delivers its first cycle: a fifth
                           // of a second has been measured on the iPad mini
@@ -1121,7 +1193,7 @@ private:
             }
             measureOutputLatency();
             leaveMute();
-            playing = [player_ playAndReturnError:&error];
+            playing = andwisePlay(player_, &error);
         } @catch (NSException*) {
         }
         if (playing) {
@@ -1502,7 +1574,7 @@ private:
         @try {
             NSError* error = nil;
             measureOutputLatency();
-            if ([player_ playAndReturnError:&error])
+            if (andwisePlay(player_, &error))
                 return OutputStart::running;
         } @catch (NSException*) {
         }
@@ -1661,6 +1733,7 @@ private:
     id __strong routeObserver_;
     id __strong deactivationObserver_;
     id __strong resumptionObserver_;
+    id __strong interruptionObserver_; // iOS 26 only
     // The system has the session, and no end has come yet.
     bool interrupted_ {};
     // How many interruptions have begun.

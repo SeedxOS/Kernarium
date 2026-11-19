@@ -17,7 +17,10 @@ struct CameraPlatform {
     static var system: CameraPlatform {
         let info = ProcessInfo.processInfo
         return CameraPlatform(
-            isiOSAppOnMac: info.isiOSAppOnMac, isiOSAppOnVision: info.isiOSAppOnVision,
+            isiOSAppOnMac: info.isiOSAppOnMac,
+            // Andwise: isiOSAppOnVision is iOS 26.1+; an iOS 26.0 process is not
+            // an iPhone app on visionOS.
+            isiOSAppOnVision: { if #available(iOS 26.1, *) { info.isiOSAppOnVision } else { false } }(),
             hasFrontCamera: { SystemCameraSource.hasFrontCamera })
     }
 

@@ -288,7 +288,12 @@ private final class CoreMotionDevice: MotionDevice, @unchecked Sendable {
             magnetometer: manager.isMagnetometerAvailable, deviceMotion: manager.isDeviceMotionAvailable,
             northFrame: { CMMotionManager.availableAttitudeReferenceFrames().contains(.xMagneticNorthZVertical) },
             authorization: {
+                // Andwise: CMMotionManager.authorizationStatus is in the iOS
+                // 27.2 SDK; an older SDK has no such member, so the permission
+                // reads as unknown, as it does on any iOS before 27.2.
+                #if ANDWISE_SDK_27_2
                 if #available(iOS 27.2, *) { return CMMotionManager.authorizationStatus }
+                #endif
                 return nil
             })
         #if !APP_STORE

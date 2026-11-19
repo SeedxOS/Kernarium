@@ -421,12 +421,12 @@ mesa_run()
 	mesa_run_path=$1
 	shift
 	if [ "$CROSS_BUILD" -eq 0 ]; then
-		env -i PATH="$mesa_run_path" TMPDIR="$APPLE_GPU_TEMP_DIR" \
+		env -i ${DEVELOPER_DIR:+DEVELOPER_DIR="$DEVELOPER_DIR"} PATH="$mesa_run_path" TMPDIR="$APPLE_GPU_TEMP_DIR" \
 			SDKROOT="$SDK_ROOT" \
 			MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
 			"$@"
 	else
-		env -i PATH="$mesa_run_path" TMPDIR="$APPLE_GPU_TEMP_DIR" "$@"
+		env -i ${DEVELOPER_DIR:+DEVELOPER_DIR="$DEVELOPER_DIR"} PATH="$mesa_run_path" TMPDIR="$APPLE_GPU_TEMP_DIR" "$@"
 	fi
 }
 
@@ -435,7 +435,7 @@ mesa_setup()
 	mesa_setup_path=$1
 	shift
 	if [ "$CROSS_BUILD" -eq 0 ]; then
-		env -i PATH="$mesa_setup_path" TMPDIR="$APPLE_GPU_TEMP_DIR" \
+		env -i ${DEVELOPER_DIR:+DEVELOPER_DIR="$DEVELOPER_DIR"} PATH="$mesa_setup_path" TMPDIR="$APPLE_GPU_TEMP_DIR" \
 			SDKROOT="$SDK_ROOT" \
 			MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
 			CC="$CC" CXX="$CXX" OBJC="$CC" OBJCXX="$CXX" \
@@ -443,7 +443,7 @@ mesa_setup()
 			PKG_CONFIG_SYSROOT_DIR= \
 			"$@"
 	else
-		env -i PATH="$mesa_setup_path" TMPDIR="$APPLE_GPU_TEMP_DIR" \
+		env -i ${DEVELOPER_DIR:+DEVELOPER_DIR="$DEVELOPER_DIR"} PATH="$mesa_setup_path" TMPDIR="$APPLE_GPU_TEMP_DIR" \
 			PKG_CONFIG_PATH= PKG_CONFIG_LIBDIR="$MESA_PKG_CONFIG" \
 			PKG_CONFIG_SYSROOT_DIR= \
 			"$@"
@@ -459,7 +459,7 @@ if [ "$SOFTWARE" -eq 0 ]; then
 	# The protocol producer runs out of tree against authenticated source, so
 	# its Git banner records the real prepared topic rather than an outer repo.
 	VENUS_PROTOCOL_BUILD="$BUILDS/venus-protocol"
-	env -i PATH="$MESA_TOOL_PATH" TMPDIR="$APPLE_GPU_TEMP_DIR" \
+	env -i ${DEVELOPER_DIR:+DEVELOPER_DIR="$DEVELOPER_DIR"} PATH="$MESA_TOOL_PATH" TMPDIR="$APPLE_GPU_TEMP_DIR" \
 		CC="$NATIVE_CC" SDKROOT="$NATIVE_SDK_ROOT" \
 		CFLAGS="-isysroot $NATIVE_SDK_ROOT -target $NATIVE_TARGET" \
 		MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
@@ -467,10 +467,10 @@ if [ "$SOFTWARE" -eq 0 ]; then
 		"$MESON" setup "$VENUS_PROTOCOL_BUILD" "$VENUS_PROTOCOL_SOURCE" \
 			--buildtype debugoptimized -Db_ndebug=false --wrap-mode=nodownload \
 			-Dvulkan-headers-dir="$VULKAN_HEADERS_SOURCE"
-	env -i PATH="$MESA_TOOL_PATH" TMPDIR="$APPLE_GPU_TEMP_DIR" \
+	env -i ${DEVELOPER_DIR:+DEVELOPER_DIR="$DEVELOPER_DIR"} PATH="$MESA_TOOL_PATH" TMPDIR="$APPLE_GPU_TEMP_DIR" \
 		SDKROOT="$NATIVE_SDK_ROOT" MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
 		"$MESON" compile -C "$VENUS_PROTOCOL_BUILD" -j "$JOBS"
-	env -i PATH="$MESA_TOOL_PATH" TMPDIR="$APPLE_GPU_TEMP_DIR" \
+	env -i ${DEVELOPER_DIR:+DEVELOPER_DIR="$DEVELOPER_DIR"} PATH="$MESA_TOOL_PATH" TMPDIR="$APPLE_GPU_TEMP_DIR" \
 		"$MESON" test -C "$VENUS_PROTOCOL_BUILD" --print-errorlogs
 	VENUS_PROTOCOL_GENERATED_SHA256=$(
 		CDPATH= cd -- "$VENUS_PROTOCOL_BUILD"
@@ -488,7 +488,7 @@ if [ "$CROSS_BUILD" -eq 1 ] && [ "$SOFTWARE" -eq 0 ]; then
 	MESA_TOOLS_BUILD="$BUILDS/Mesa-tools"
 	MESA_TOOLS_STAGE="$BUILDS/Mesa-tools-stage"
 	mkdir -p -- "$MESA_TOOLS_STAGE"
-	env -i PATH="$MESA_TOOL_PATH" TMPDIR="$APPLE_GPU_TEMP_DIR" \
+	env -i ${DEVELOPER_DIR:+DEVELOPER_DIR="$DEVELOPER_DIR"} PATH="$MESA_TOOL_PATH" TMPDIR="$APPLE_GPU_TEMP_DIR" \
 		SDKROOT="$NATIVE_SDK_ROOT" MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
 		CC="$NATIVE_CC" CXX="$NATIVE_CXX" \
 		OBJC="$NATIVE_CC" OBJCXX="$NATIVE_CXX" \
@@ -501,10 +501,10 @@ if [ "$CROSS_BUILD" -eq 1 ] && [ "$SOFTWARE" -eq 0 ]; then
 			-Dgallium-drivers= -Dopengl=false -Dzstd=disabled \
 			-Dllvm=disabled -Dspirv-tools=disabled \
 			-Dinstall-mesa-clc=true -Dinstall-precomp-compiler=true
-	env -i PATH="$MESA_TOOL_PATH" TMPDIR="$APPLE_GPU_TEMP_DIR" \
+	env -i ${DEVELOPER_DIR:+DEVELOPER_DIR="$DEVELOPER_DIR"} PATH="$MESA_TOOL_PATH" TMPDIR="$APPLE_GPU_TEMP_DIR" \
 		SDKROOT="$NATIVE_SDK_ROOT" MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
 		"$MESON" compile -C "$MESA_TOOLS_BUILD" -j "$JOBS"
-	env -i PATH="$MESA_TOOL_PATH" TMPDIR="$APPLE_GPU_TEMP_DIR" \
+	env -i ${DEVELOPER_DIR:+DEVELOPER_DIR="$DEVELOPER_DIR"} PATH="$MESA_TOOL_PATH" TMPDIR="$APPLE_GPU_TEMP_DIR" \
 		SDKROOT="$NATIVE_SDK_ROOT" MACOSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
 		"$MESON" install --no-rebuild -C "$MESA_TOOLS_BUILD" > /dev/null
 	for tool in vtn_bindgen2 kk_clc; do

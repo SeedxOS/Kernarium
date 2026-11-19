@@ -111,7 +111,7 @@ mkdir -p -- "$SOURCE"
 llvm_cmake()
 {
 	llvm_log="$WORK_ROOT/llvm-$LLVM_STEP.log"
-	if ! env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin TMPDIR="${TMPDIR:-/tmp}" \
+	if ! env -i ${DEVELOPER_DIR:+DEVELOPER_DIR="$DEVELOPER_DIR"} PATH=/usr/bin:/bin:/usr/sbin:/sbin TMPDIR="${TMPDIR:-/tmp}" \
 		"$CMAKE" "$@" >"$llvm_log" 2>&1; then
 		tail -n 40 "$llvm_log" >&2
 		fail "LLVM $LLVM_STEP failed; the full log is $llvm_log"
